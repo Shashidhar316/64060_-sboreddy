@@ -1,0 +1,132 @@
+---
+title: "knn classification"
+author: "Shashidhar Reddy Boreddy"
+date: "2022-10-03"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup}
+
+#importing the requiored packages in r
+library('caret')
+library('ISLR')
+library('dplyr')
+library('class')
+
+#Importing the dataset from local folders
+
+sb.data <- read.csv("~/Documents/assignments/FUNDAMENTALS ML/UB.csv", header = TRUE, 
+                         sep =",", stringsAsFactors = FALSE)
+#Question_1
+#conducting a k-NN classification
+#predictors removed, i.e., removing ID and ZIP Code from each and every column from the data set
+sb.data$ID <- NULL
+sb.data$ZIP.Code <- NULL
+summary(sb.data)
+
+#converting categorical variable "personal loan" into a factor that responses as "yes" or "no."
+
+sb.data$Personal.Loan =  as.factor(sb.data$Personal.Loan)
+
+
+#normalize the data by dividing
+#training and validation, use preProcess() from the caret package.
+M_norm <- preProcess(sb.data[, -8],method = c("center", "scale"))
+sb.data_norm <- predict(M_norm,sb.data)
+summary(sb.data_norm)
+
+
+#partition of the data into test and training sets as per the requirements 
+sb_train_index <- createDataPartition(sb.data$Personal.Loan, p = 0.6, list = FALSE)
+my_train.df = sb.data_norm[sb_train_index,]
+validate.sb.df = sb.data_norm[-sb_train_index,]
+
+print(head(my_train.df))
+
+#predict dataset from the above data given.
+library(caret)
+library(FNN)
+
+sb.predict = data.frame(Age = 40, Experience = 10, Income = 84, Family = 2,
+                        CCAvg = 2, Education = 1, Mortgage = 0, Securities.Account =
+                          0, CD.Account = 0, Online = 1, CreditCard = 1)
+print(sb.predict)
+sb.predict_Norm <- predict(M_norm,sb.predict)
+
+predictions <- knn(train= as.data.frame(my_train.df[,1:7,9:12]),
+                  test = as.data.frame(sb.predict_Norm[,1:7,9:12]),
+                  cl= my_train.df$Personal.Loan,
+                  k=1)
+print(predictions)
+
+```
+```{r}
+#Question_2 
+#determining the K value that balances overfitting and underfitting from the data set
+
+set.seed(123)
+SB.Bank <- trainControl(method= "repeatedcv", number = 3, repeats = 2)
+searchGrid = expand.grid(k=1:10)
+
+knn.model = train(Personal.Loan~., data = my_train.df, method = 'knn', tuneGrid = searchGrid,trControl = SB.Bank)
+
+knn.model
+```
+```{r}
+#perfect value of k is 3
+#strikes a compromise between underfitting and overfitting of the data above.
+
+#Question 3
+#confusion Matrix is below
+predictors_bank <- predict(knn.model,validate.sb.df)
+
+confusionMatrix(predictors_bank,validate.sb.df$Personal.Loan)
+#The confustionmatrix has a 95.1% accuracy.
+```
+```{r}
+#Question 4
+#Levels
+#using the best K to classify the consumer.
+sb.predict_Norm = data.frame(Age = 40, Experience = 10, Income = 84, Family = 2,
+                                   CCAvg = 2, Education = 1, Mortgage = 0,
+                                   Securities.Account =0, CD.Account = 0, Online = 1,
+                                   CreditCard = 1)
+sb.predict_Norm = predict(M_norm, sb.predict)
+predict(knn.model, sb.predict_Norm)
+#A plot that shows the best value of K (3), the one with the highest accuracy, is also present.
+plot(knn.model, type = "b", xlab = "K-Value", ylab = "Accuracy")
+```
+
+```{r}
+#Question 5
+#creating training, test, and validation sets from the data collection.
+t_size = 0.5 #training(50%)
+sb_train_index = createDataPartition(sb.data$Personal.Loan, p = 0.5, list = FALSE)
+my_train.df = sb.data_norm[sb_train_index,]
+
+
+t.data_size = 0.2 #Test Data(20%)
+Test.data_index = createDataPartition(sb.data$Personal.Loan, p = 0.2, list = FALSE)
+t.data.df = sb.data_norm[Test.data_index,]
+
+
+validation_size = 0.3 #validation(30%)
+Validation.sb_index = createDataPartition(sb.data$Personal.Loan, p = 0.3, list = FALSE)
+validate.sb.df = sb.data_norm[Validation.sb_index,]
+
+
+
+Test.data.knn <- knn(train = my_train.df[,-8], test = t.data.df[,-8], cl = my_train.df[,8], k =3)
+Validation.knn <- knn(train = my_train.df[,-8], test = validate.sb.df[,-8], cl = my_train.df[,8], k =3)
+Training.knn <- knn(train = my_train.df[,-8], test = my_train.df[,-8], cl = my_train.df[,8], k =3)
+
+confusionMatrix(Test.data.knn, t.data.df[,8])
+confusionMatrix(Validation.knn, validate.sb.df[,8])
+confusionMatrix(Training.knn, my_train.df[,8])
+
+#Final Verdict: The training data have improved accuracy and sensitivity. According to the aforementioned matrices, the values for the Test, Training, and Validation sets are 96.3%, 97.32%, and 96.73%, respectively. It is possible to argue that overfitting would take place if the Training data were more accurate than the other sets. Because the accuracies of the Training, Test, and Validation sets do not vary much from testing data and validation data, we may infer that we have identified the optimal value of k.
+
+
+```
