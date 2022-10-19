@@ -1,0 +1,191 @@
+---
+title: "Naive Bayes for classification"
+author: "Shashidhar Reddy Boreddy"
+date: "2022-10-18"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r Call csv and factor variables}
+#calling required libraries
+library(caret)
+library(dplyr)
+library(ggplot2)
+library(lattice)
+library(knitr)
+library(rmarkdown)
+library(e1071)
+```
+
+```{r}
+#importing The Data Set 
+library(readr)
+sb_data <- read.csv("C:/Users/shash/Dropbox/PC/Downloads/UniversalBank.csv")
+View(sb_data)
+```
+
+```{r}
+####The consecutive section simply extracts the csv file, removes the ID and zip code (like last time, meaningless), and then creates the appropriate variables factors, changing numerical variables to categorical first.
+bsr1 <- sb_data %>% select(Age, Experience, Income, Family, CCAvg, Education, Mortgage, Personal.Loan , Securities.Account, CD.Account, Online, CreditCard)
+bsr1$CreditCard <- as.factor(bsr1$CreditCard)
+bsr1$Personal.Loan <- as.factor((bsr1$Personal.Loan))
+bsr1$Online <- as.factor(bsr1$Online)
+```
+
+```{r}
+##This creates the data separation, as well as the train and validation data.
+select.var <- c(8,11,12)
+set.seed(23)
+Train.Index = createDataPartition(bsr1$Personal.Loan, p=0.60, list=FALSE)
+Train_Data = bsr1[Train.Index,select.var]
+Validation.Data = bsr1[-Train.Index,select.var]
+```
+
+```{r A}
+##A. Create a pivot table for the training data with Online as a column variable, CC as a row variable,and Loan as a secondary row variable. The values inside the table should convey the count. In R use functions melt() and cast(), or function table(). In Python, use panda dataframe methods melt() and pivot().
+#In the resulting pivot table CC and LOAN are both rows, and online is a column.
+attach(Train_Data)
+##ftable is defined as "function table". 
+ftable(CreditCard,Personal.Loan,Online)
+detach(Train_Data)
+```
+
+###Given Online=1 and CC=1, we add 53 (Loan=1 from ftable) to 497 (Loan=0 from ftable), which equals 550, to get the conditional probability that Loan=1. 53/550 = 0.096363 or 9.64% of the time.
+
+```{r}
+##B. Consider the task of classifying a customer who owns a bank credit card and is actively using online banking services. Looking at the pivot table, what is the probability that this customer will accept the loan offer? [This is the probability of loan acceptance (Loan = 1) conditional on having a bank credit card (CC = 1) and being an active user of online banking services (Online = 1)].
+
+prop.table(ftable(Train_Data$CreditCard,Train_Data$Online,Train_Data$Personal.Loan),margin=1)
+```
+
+###The above code generates a Percentage pivot table that depicts the loan probability depending on CC and online.
+
+```{r}
+##C. Create two separate pivot tables for the training data. One will have Loan (rows) as a function of Online (columns) and the other will have Loan (rows) as a function of CC.
+
+attach(Train_Data)
+ftable(Personal.Loan,Online)
+ftable(Personal.Loan,CreditCard)
+detach(Train_Data)
+```
+
+###In the Above first , "Online" compensates a column, "Loans" compensates a row, and "Credit Card" compensates a column.
+
+```{r}
+##D. Compute the following quantities [P(A | B) means “the probability ofA given B”]:  
+prop.table(ftable(Train_Data$Personal.Loan,Train_Data$CreditCard),margin=)
+prop.table(ftable(Train_Data$Personal.Loan,Train_Data$Online),margin=1)
+```
+
+sbi) 92/288 = 0.3194 or 31.94%
+
+sbii) 167/288 = 0.5798 or 57.986%
+
+sbiii) total loans= 1 from table (288) divide by total from table (3000) = 0.096 or 9.6%
+
+sbiV) 812/2712 = 0.2994 or 29.94%
+
+sbV) 1624/2712 = 0.5988 or 59.88%
+
+sbVi) total loans=0 from table(2712) divided by total from table (3000) = 0.904 or 90.4%
+
+##E. Use the quantities computed above to compute the naive Bayes probability P(Loan = 1 | CC = 1,Online = 1).
+
+(0.3194 * 0.5798 * 0.096)/[(0.3194 * 0.5798 * 0.096)+(0.2994 * 0.5988 * 0.904)] = 0.0988505642823701 or 9.885%
+
+##F. Compare this value with the one obtained from the pivot table in (B). Which is a more accurate estimate? 
+
+###There is no significant difference between 0.096363, or 9.64%, and 0.0988505642823701, or 9.885%. The pivot table value is the more accurate estimated value since it does not rely on the probabilities being independent. While  E analyzes probability of each of those counts, B uses a direct computation from a count. As a result, B is more specific, whereas E is more generic.
+
+```{r}
+##G. Which of the entries in this table are needed for computing P(Loan = 1 | CC = 1, Online = 1)? Run naive Bayes on the data. Examine the model output on training data, and find the entry that corresponds to P(Loan = 1 | CC = 1, Online = 1). Compare this to the number you obtained in (E). 
+
+## Displaying TRAINING dataset
+sb_data.sb <- naiveBayes(Personal.Loan ~ ., data = Train_Data)
+sb_data.sb
+```
+##The pivot table in step B may be used to quickly compute P(LOAN=1|CC=1,Online=1) without using the Naive Bayes model, whereas using the two tables produced in step C makes it straightforward and obvious HOW you are computing P(LOAN=1|CC=1,Online=1) using the Naive Bayes model.
+
+###The model forecast, however, is lower than the probability estimated manually in step E. The Naive Bayes model predicts the same probability as the preceding techniques. The predicted probability is closer to the one from step B. This is possible because step E needs manual computation, which raises the chance of error when rounding fractions and resulting in a rough estimate.
+```{r}
+## sb confusion matrix for Train_Data
+##TRAINING
+prediction_class <- predict(sb_data.sb, newdata = Train_Data)
+confusionMatrix(prediction_class, Train_Data$Personal.Loan)
+```
+
+###Despite being very sensitive, this model had a low specificity. The model projected that all values would be 0 in the absence of all real values from the reference. Because of the enormous number of 0, even if the model missed all values of 1, it still yields 90.4% accuracy.
+```{r Validation set}
+prediction.probab <- predict(sb_data.sb, newdata=Validation.Data, type="raw")
+prediction_class <- predict(sb_data.sb, newdata = Validation.Data)
+confusionMatrix(prediction_class, Validation.Data$Personal.Loan)
+```
+
+#Let's look at the model graphically and choose the best threshold.
+
+```{r ROC}
+library(pROC)
+roc(Validation.Data$Personal.Loan,prediction.probab[,1])
+plot.roc(Validation.Data$Personal.Loan,prediction.probab[,1],print.thres="best")
+```
+##As a consequence, it is possible to demonstrate that the model might be improved by adopting a cutoff of 0.906, which would lower sensitivity to 0.495 and increasing specificity to 0.576.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
