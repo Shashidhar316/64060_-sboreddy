@@ -1,0 +1,101 @@
+---
+title: "Kmeans Clustering model"
+author: "Shashidhar Reddy Boreddy"
+date: "2022-11-01"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup}
+#Importing Required Packages
+library(readr)
+#Importing Data Set
+sb_pharma <- read_csv("C:/Users/shash/Dropbox/PC/Downloads/Pharmaceuticals.csv")
+library(ggplot2)
+library(factoextra)
+library(flexclust)
+library(cluster)
+library(tidyverse)
+#summary Of the Data
+summary(sb_pharma)
+#Question(A)
+#Use only the numerical variables (1 to 9) to cluster the 21 firms. Justify the
+#various choices made in conducting the cluster analysis, such as weights for 
+#different variables, the specific clustering algorithm(s) used, the number of
+#clusters formed, and so on. 
+S <- na.omit(sb_pharma)
+S
+row.names <- S[,1]
+sb_pharma1 <- S[,3:11]#numerical variable from 3 to 11
+head(sb_pharma1)
+sb_pharma2 <- scale(sb_pharma1)
+head(sb_pharma2)
+fviz_nbclust(sb_pharma2, kmeans, method = "wss") +labs(subtitle = "Elbow Method")
+fviz_nbclust(sb_pharma2, kmeans, method = "silhouette") + labs(subtitle = "Silhouette Method")
+fviz_nbclust(sb_pharma2, kmeans, method = "gap_stat") + labs(subtitle = "Gap Stat Method")
+```
+```{r}
+set.seed(64060)
+k_5 <- kmeans(sb_pharma2, centers = 5, nstart = 25)
+k_5 $centers
+fviz_cluster(k_5, data = sb_pharma2)
+k_5
+Dist <- dist(sb_pharma2, method = "euclidian")
+fvi_dist(Dist)
+FITT <- kmeans(sb_pharma2,5)
+aggregate(sb_pharma2,by = list(FITT$cluster), FUN = mean)
+sb_pharma3 <- data.frame(sb_pharma2,FITT$cluster)
+sb_pharma3
+library(cluster)
+clusplot(sb_pharma2,FITT$cluster, color = TRUE, shade = TRUE, 
+ labels = 2,
+ lines = 0)
+```
+```{r}
+#QUestion (B)
+#Interpret the clusters with respect to the numerical variables used in forming 
+#the clusters. 
+aggregate(sb_pharma2, by = list(FITT$cluster), FUN = mean)
+Sb_Pharmacy <- data.frame(sb_pharma2,k_5$cluster)
+Sb_Pharmacy
+#CLuster 1:- JNJ, MRK, GSK, PFE
+#(Highest Market_Cap and lowest Beta/PE Ratio)
+#Cluster 2:- AHM, WPI, AVE
+#(Highest Revenue Growth and lowest PE/Asset Turnover Ratio)
+#Cluster 3:- CHTT, IVX, MRX, ELN
+#(Highest Beta/leverage/Asset Turnover Ratio and lowest Net_Profit_Margin, PE ratio and Marke#Cluster)
+#Cluster 4:- AGN,BAY, PHA
+#(Highest PE ratio and lowest Leverage/Asset_Turnover)
+#Cluster 5:- ABT, WYE, AZN, SGP, BMY, NVS, LLY
+# (Highest Net_Proft_Margin and lowest Leverage)
+```
+
+```{r}
+#Question(C)
+#Is there a pattern in the clusters with respect to the numerical variables (10 to 12)? #(those not used in forming the clusters) 
+PH <- sb_pharma[12:14] %>% mutate(Clusters=k_5$cluster)
+ggplot(PH, mapping = aes(factor(Clusters), fill =Median_Recommendation))+geom_bar(position='dodge')+labs(x ='Clusters')
+ggplot(PH, mapping = aes(factor(Clusters),fill = Location))+geom_bar(position = 'dodge')+labs(x ='Clusters')
+ggplot(PH, mapping = aes(factor(Clusters),fill = Exchange))+geom_bar(position = 'dodge')+labs(x ='Clusters')
+#We can see a minor pattern in the clusters from the graphs above
+#The cluster 1 has distinct Hold and Moderate Buy medians, as well as a different count from the US and Germany, but the businesses are evenly dispersed on the AMEX,NASDAQ and NYSE.
+#Hold and Moderate buy medians are similarly distributed in Cluster 2
+#the United States and Canada are listed on the NYSE..
+#Cluster 3 has similar Moderate Buy and Sell medians, but a different count from Cluster 
+#France, Ireland, and the United States are all listed on the NYSE
+#Cluster 4 offers Hold, Moderate Buy, Moderate Sell, and Strong Buy options.
+#The median for the hold is the highest. They are from the United States, the United Kingdom, and Switzerland, and they are listed in NYSE
+# Cluster 5 has the same hold and mdoerate purchase medians and is spread in
+#countries UK and US and is also listed in NYSE
+```
+
+```{r}
+#Question(D)
+#Provide an appropriate name for each cluster using any or all of the variables in the dataset. 
+#Cluster 1 :- Buy Cluster
+#Cluster 2 :- Sceptical Cluster
+#Cluster 3 :- Moderate Buy Cluster
+#Cluster 4 :- Hold Cluster
+#Cluster 5 :- High Hold Cluster
+```
