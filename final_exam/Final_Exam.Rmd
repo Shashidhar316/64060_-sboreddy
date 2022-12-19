@@ -1,0 +1,240 @@
+---
+title: "Final Assignment"
+author: "Shashidhar Reddy Boreddy"
+date: "2022-12-16"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## R Markdown
+# Data is from biologists collecting data on penguins:
+
+## Prepare the data  of penguins 
+#importing the required packages
+
+```{r}
+library(caret)
+library(ggplot2)
+library(lattice)
+library(class)
+library(dplyr)
+library(gmodels)
+library(knitr)
+library(rmarkdown)
+library(tidyverse)
+library(dplyr)
+library(factoextra)
+#importing a dataset
+SB_data <- read.csv("C:/Users/shash/Dropbox/PC/Downloads/penguins_lter.csv")
+SB_data <- na.omit(SB_data)
+Island <- dummyVars(~Island,SB_data)
+IslDV <- predict(Island, SB_data)
+#using appropriate predict function 
+Species <- dummyVars(~Species,SB_data)
+SpecDV <- predict(Species, SB_data)
+
+#creating sub sets 
+SB_data <- subset(SB_data, select = -c(Island))
+SB_data$Clutch.Completion <- ifelse(SB_data$Clutch.Completion == "Yes",1,0)
+SB_data$Sex <- ifelse(SB_data$Sex == "MALE",1,0)
+
+dvSB_data <- cbind(SB_data,IslDV,SpecDV)
+
+
+clust_constraint <- dvSB_data %>% select_if(is.numeric)
+clust_constraint$Sample.Number = NULL
+
+
+
+set.seed(2)
+#using the dist function
+clust_constraint <- scale(clust_constraint)
+distance <- get_dist(clust_constraint)
+fviz_dist(distance)
+```
+
+
+## Finding ideal K
+
+Given that we are seperationg by, islands, k=3 is obvious, though the code below confirms this.
+
+```{r}
+clust_constraint <- scale(clust_constraint)
+fviz_nbclust(clust_constraint,kmeans, method = "wss")
+fviz_nbclust(clust_constraint,kmeans, method = "silhouette")
+```
+
+
+## Visualizing the k means clustering
+
+#The distinct groups are visually shown here, along with how they differ statistically.
+
+```{r}
+k2 <- kmeans(clust_constraint, centers = 3, nstart = 25)
+
+k2$centers
+k2$size
+k2$cluster[11]
+
+fviz_cluster(k2, data = clust_constraint)
+```
+
+
+## Identifiying the detailed clusters
+Prepare again
+
+#Clustering is used to restore the clusters shown below.
+```{r cars}
+library(gmodels)
+library(knitr)
+library(rmarkdown)
+library(readr)
+library(tidyverse)
+library(caret)
+library(cluster)
+library(factoextra)
+library(RColorBrewer)
+library(dplyr)
+library(ggraph)
+library(igraph)
+SB_data <- read.csv("C:/Users/shash/Dropbox/PC/Downloads/penguins_lter.csv")
+SB_data <- na.omit(SB_data)
+
+Island <- dummyVars(~Island,SB_data)
+IslDV <- predict(Island, SB_data)
+
+Species <- dummyVars(~Species,SB_data)
+SpecDV <- predict(Species, SB_data)
+
+
+
+SB_data$Clutch.Completion <- ifelse(SB_data$Clutch.Completion == "Yes",1,0)
+SB_data$Sex <- ifelse(SB_data$Sex == "MALE",1,0)
+
+dvSB_data <- cbind(SB_data,IslDV,SpecDV)
+
+
+
+
+numeric_Penguins <- dvSB_data %>% select_if(is.numeric)
+numeric_Penguins$Sample.Number = NULL
+
+
+SB_data_norm <- as.data.frame(scale(numeric_Penguins))
+
+d <- dist(SB_data_norm, method = "euclidean")
+
+```
+
+
+## Select Method
+
+#Now we'll see which clustering approach performs the best.
+```{r pressure, echo=FALSE}
+m <- c( "average", "single", "complete", "ward")
+names(m) <- c( "average", "single", "complete", "ward")
+# function to compute coefficient
+ac <- function(x) {
+  agnes(d, method = x)$ac
+}
+map_dbl(m, ac)  
+```
+
+
+## Agnes of  visualization
+
+##Now we'll create an Agnes Dendogram to show how the clusters divide.
+```{r}
+hc <- agnes(d, method = "ward")
+pltree(hc, cex = 0.6, hang = -1, main = "Agnes Dendogram")
+rect.hclust(hc, k = 3, border = 1:5)
+
+```
+
+
+## Create cluster partitions
+
+#In the two parts that follow, we will first create the cluster divisions and then generate the centroids for each group.
+```{r}
+cluster_part <- cutree(hc, k = 3)
+Penguins_clustered <- mutate(SB_data_norm, cluster = cluster_part)
+set.seed(23)
+
+part_index <- createDataPartition(Penguins_clustered$cluster, p = 0.7, list = FALSE)
+Part_A <- Penguins_clustered[part_index,]
+Part_B <- Penguins_clustered[-part_index,]
+```
+
+
+```{r}
+Part_A_centroid <- Part_A %>% gather("features", "values", -cluster) %>% group_by(cluster,features) %>% summarise(mean_values = mean(values)) %>% spread(features, mean_values)
+
+cluster_B <- data.frame(data = seq(1,nrow(Part_B), 1), Cluster_B_Part = rep(0,nrow(Part_B)))
+
+for (x in 1:nrow(Part_B)) {
+  cluster_B$Cluster_B_Part[x] <- which.min(as.matrix(get_dist(as.data.frame(rbind(Part_A_centroid[-1], Part_B[x, -length(Part_B)]))))[4,-4])
+}
+
+cluster_B <- cluster_B %>% mutate(original_clusters = Part_B$cluster)
+mean(cluster_B$Cluster_B_Part) == cluster_B$original_clusters
+```
+
+
+```{r}
+split_clusters <- split(Penguins_clustered, Penguins_clustered$cluster)
+mean_split <- lapply(split_clusters,colMeans)
+mean_split
+
+(centroids <- do.call(rbind, mean_split))
+```
+
+
+#details of cluster
+
+#Finally, we are plotting the clusters in order to determine the specifics of each cluster.
+
+```{r}
+hc.graph <-
+  colorRampPalette(rev(brewer.pal(9, 'Blues')), space = 'Lab')
+data.frame(centroids) %>% gather("features", "values",-cluster) %>%
+  ggplot(aes(
+    x = factor(cluster),
+    y = features,
+    fill = values
+  )) + 
+  geom_tile() + theme_classic() +
+  theme(
+    legend.position = "top",
+    plot.title = element_text(hjust = 0.5),
+    legend.key.width = unit(3, "cm"),
+  ) +
+  scale_x_discrete(expand = c(0, 0)) +
+  scale_fill_gradientn(colours = hc.graph(100)) +
+  labs(title = "Cluster Characteristics",
+       x = "Clusters",
+       y = "Features",
+       fill = "Centroids")
+```
+
+
+#Individuals are being screened.
+Below We evaluate k2 so we can Identify which individual Penguin goes in Which cluster. 
+```{r}
+k2
+
+
+
+
+
+
+```
+
+#The higher the body mass, the larger the beack (culmen) and flipper; however, the culmen is shallower.
+
+The 'echo = FALSE' argument was added to the code chunk to prevent the R code that created the plot from being printed.
